@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+frontend/node_modules/
+
+# Build output
+frontend/dist/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Secrets
+backend/config.yaml
+.env
+*.env
+
+# IDE / OS
+.cursor/
+.DS_Store
+Thumbs.db
