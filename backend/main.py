@@ -4,6 +4,8 @@ from pydantic import BaseModel, Field
 
 from config_loader import load_config
 from deepseek_service import DeepSeekService
+from planner_service import PlannerService
+from tools.registry import get_tool_registry
 
 app = FastAPI(title="Manus AI Backend")
 
@@ -20,6 +22,7 @@ app.add_middleware(
 
 config = load_config()
 deepseek_service = DeepSeekService(config)
+planner_service = PlannerService(config, deepseek_service)
 
 
 class MessageRequest(BaseModel):
@@ -33,27 +36,36 @@ class MessageResponse(BaseModel):
 
 @app.get("/")
 def root():
+    tools = [{"name": t.name, "description": t.description} for t in get_tool_registry()]
     return {
         "status": "ok",
         "message": "Manus AI Backend is running",
         "model": config.deepseek.model,
         "deepseek_configured": deepseek_service.is_configured,
+        "tools": tools,
     }
 
 
 @app.post("/api/message", response_model=MessageResponse)
 def receive_message(payload: MessageRequest):
     try:
-        result = deepseek_service.chat(payload.content)
+        plan = planner_service.plan(payload.content)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
-        print(f"[DeepSeek 调用失败] {exc}")
-        raise HTTPException(status_code=502, detail="DeepSeek 模型调用失败，请稍后重试") from exc
+        print(f"[Planner 调用失败] {exc}")
+        raise HTTPException(status_code=502, detail="Planner 智能体调用失败，请稍后重试") from exc
 
-    if result.get("reasoning_content"):
-        print(f"[DeepSeek 推理过程]\n{result['reasoning_content']}\n")
+    if plan.get("reasoning_content"):
+        print(f"[Planner 推理过程]\n{plan['reasoning_content']}\n")
 
-    print(f"[DeepSeek 回复]\n{result['content']}\n")
+    print("[Planner 任务拆分]")
+    print(f"  分析: {plan.get('analysis', '—')}")
+    for task in plan.get("subtasks", []):
+        tool = task.get("tool") or "无"
+        print(f"  [{task.get('id')}] {task.get('title')} | 工具: {tool}")
+        print(f"      {task.get('description')}")
+    print()
 
-    return MessageResponse(content=result["content"])
+    reply = PlannerService.format_plan_for_user(plan)
+    return MessageResponse(content=reply)

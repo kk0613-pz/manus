@@ -6,3 +6,9 @@ deepseek:
   model: "deepseek-reasoner"
   # 推理强度：low / high / max（reasoner 模式下可选）
   reasoning_effort: "high"
+
+tavily:
+  # Tavily 搜索 API Key（https://app.tavily.com）
+  api_key: "your-tavily-api-key"
+  search_depth: "basic"
+  max_results: 5

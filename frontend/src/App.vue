@@ -47,6 +47,7 @@ const messages = ref([
 
 const selectedFile = ref(null)
 const panelOpen = ref(false)
+const isLoading = ref(false)
 
 const activeTask = computed(() =>
   tasks.value.find((t) => t.id === activeTaskId.value)
@@ -71,6 +72,8 @@ async function sendMessage(text) {
     content,
     timestamp,
   })
+
+  isLoading.value = true
 
   try {
     const res = await fetch('/api/message', {
@@ -99,6 +102,8 @@ async function sendMessage(text) {
       timestamp,
     })
     console.error(err)
+  } finally {
+    isLoading.value = false
   }
 }
 
@@ -135,9 +140,9 @@ function closePanel() {
         </div>
       </header>
 
-      <ChatArea :messages="messages" />
+      <ChatArea :messages="messages" :loading="isLoading" />
 
-      <ChatInput @send="sendMessage" />
+      <ChatInput :loading="isLoading" @send="sendMessage" />
     </main>
 
     <FilePanel

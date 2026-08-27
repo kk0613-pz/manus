@@ -1,34 +1,45 @@
 # Manus AI Backend
 
-基于 Python + FastAPI + DeepSeek Reasoner 的后端服务。
+基于 Python + FastAPI + DeepSeek + Tavily 的后端服务。
 
 ## 功能
 
-- 接收前端消息并调用 DeepSeek 模型（默认 `deepseek-reasoner`）
-- 在后端控制台打印模型推理过程与最终回复（便于调试）
-- 将模型回复返回前端作为 AI 消息展示
+- **Planner 智能体**：用户消息进入后，自动拆分为子任务
+- **工具注册表**：维护模型可调用的工具列表
+- **搜索工具**：基于 Tavily API 的联网搜索（已注册，后续可执行）
+
+## 目录结构
+
+```
+backend/
+├── main.py                 # API 入口
+├── planner_service.py      # Planner 智能体逻辑
+├── deepseek_service.py     # DeepSeek 模型调用
+├── config_loader.py        # 配置加载
+├── prompts/
+│   └── planner.py          # Planner 提示词（维护在此）
+└── tools/
+    ├── registry.py         # 工具列表注册表（维护在此）
+    └── search_tool.py      # Tavily 搜索工具实现
+```
 
 ## 配置
 
-1. 复制配置模板：
-
-```bash
-cp config.example.yaml config.yaml
-```
-
-2. 编辑 `config.yaml`，填入你的 DeepSeek API Key：
+编辑 `config.yaml`：
 
 ```yaml
 deepseek:
   api_key: "sk-xxxxxxxx"
-  base_url: "https://api.deepseek.com"
   model: "deepseek-reasoner"
-  reasoning_effort: "high"
+
+tavily:
+  api_key: "tvly-xxxxxxxx"
+  search_depth: "basic"
+  max_results: 5
 ```
 
-也可通过环境变量 `DEEPSEEK_API_KEY` 覆盖配置文件中的 key。
-
-API Key 申请：https://platform.deepseek.com/api_keys
+- DeepSeek Key：https://platform.deepseek.com/api_keys
+- Tavily Key：https://app.tavily.com
 
 ## 启动
 
@@ -38,32 +49,11 @@ py -m pip install -r requirements.txt
 py -m uvicorn main:app --reload --port 8000
 ```
 
-API 文档：http://localhost:8000/docs
+## 新增工具
 
-## 接口
+1. 在 `tools/` 下实现工具逻辑
+2. 在 `tools/registry.py` 的 `TOOL_REGISTRY` 中注册
 
-### POST /api/message
+## 修改 Planner 提示词
 
-请求体：
-
-```json
-{
-  "content": "你好"
-}
-```
-
-响应：
-
-```json
-{
-  "content": "你好！有什么我可以帮你的？",
-  "role": "assistant"
-}
-```
-
-## DeepSeek 接口说明
-
-- 官方文档：https://api-docs.deepseek.com
-- 使用 OpenAI 兼容的 `POST /chat/completions` 接口
-- `deepseek-reasoner` 为思考/推理模式，响应中可能包含 `reasoning_content`（推理链）和 `content`（最终回答）
-- 前端展示的是 `content` 字段；后端控制台会同时打印推理过程与最终回复
+编辑 `prompts/planner.py` 中的 `PLANNER_SYSTEM_PROMPT` 和 `build_planner_user_prompt()`。

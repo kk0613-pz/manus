@@ -17,6 +17,12 @@ class DeepSeekService:
         return bool(key) and key != "your-deepseek-api-key"
 
     def chat(self, user_message: str) -> dict[str, str]:
+        return self.chat_with_messages(
+            system_prompt="你是 Manus AI 助手，请用简洁清晰的中文回答用户问题。",
+            user_message=user_message,
+        )
+
+    def chat_with_messages(self, system_prompt: str, user_message: str) -> dict[str, str]:
         if not self.is_configured:
             raise ValueError(
                 "DeepSeek API Key 未配置，请在 backend/config.yaml 中设置 deepseek.api_key"
@@ -26,7 +32,7 @@ class DeepSeekService:
         request_kwargs: dict = {
             "model": model,
             "messages": [
-                {"role": "system", "content": "你是 Manus AI 助手，请用简洁清晰的中文回答用户问题。"},
+                {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_message},
             ],
             "stream": False,
