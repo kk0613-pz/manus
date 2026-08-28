@@ -7,6 +7,7 @@
 
 from dataclasses import dataclass
 from typing import Any, Callable, Optional
+import json
 
 
 @dataclass
@@ -68,6 +69,17 @@ def get_tools_for_planner() -> str:
         if params:
             lines.append(f"  参数: {params}")
     return "\n".join(lines)
+
+
+def get_tools_for_executor() -> str:
+    """生成供 Executor 阅读的 tools 描述文本（含参数 schema）。"""
+    lines = []
+    for tool in get_tool_registry():
+        lines.append(f"### {tool.name}")
+        lines.append(tool.description)
+        lines.append(f"参数 schema: {json.dumps(tool.parameters, ensure_ascii=False)}")
+        lines.append("")
+    return "\n".join(lines).strip()
 
 
 def get_tool_by_name(name: str) -> Optional[ToolDefinition]:

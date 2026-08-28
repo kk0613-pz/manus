@@ -1,15 +1,17 @@
 <script setup>
 import { ref, watch, nextTick } from 'vue'
+import TodoList from './TodoList.vue'
 
 const props = defineProps({
   messages: { type: Array, required: true },
   loading: { type: Boolean, default: false },
+  loadingPhase: { type: String, default: 'planning' },
 })
 
 const chatContainer = ref(null)
 
 watch(
-  () => [props.messages.length, props.loading],
+  () => [props.messages.length, props.loading, props.messages.map((m) => m.todos?.map((t) => t.status).join())],
   async () => {
     await nextTick()
     if (chatContainer.value) {
@@ -36,7 +38,9 @@ watch(
         </div>
 
         <div class="message-bubble" :class="msg.role">
-          <div class="message-content">{{ msg.content }}</div>
+          <div v-if="msg.analysis" class="message-analysis">{{ msg.analysis }}</div>
+          <TodoList v-if="msg.todos?.length" :todos="msg.todos" />
+          <div v-if="msg.content" class="message-content">{{ msg.content }}</div>
           <div class="message-time">{{ msg.timestamp }}</div>
         </div>
 
@@ -48,7 +52,7 @@ watch(
         </div>
       </div>
 
-      <div v-if="loading" class="message-row assistant">
+      <div v-if="loading && loadingPhase === 'planning'" class="message-row assistant">
         <div class="avatar assistant-avatar">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
             <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5" />
@@ -141,10 +145,23 @@ watch(
   border-bottom-left-radius: 4px;
 }
 
+.message-analysis {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
 .message-content {
   font-size: 14px;
   white-space: pre-wrap;
   word-break: break-word;
+  margin-top: 10px;
+}
+
+.message-bubble:not(:has(.todo-list)) .message-content {
+  margin-top: 0;
 }
 
 .message-time {

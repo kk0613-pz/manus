@@ -48,15 +48,36 @@ const messages = ref([
 const selectedFile = ref(null)
 const panelOpen = ref(false)
 const isLoading = ref(false)
+const loadingPhase = ref('planning')
 
-const activeTask = computed(() =>
-  tasks.value.find((t) => t.id === activeTaskId.value)
-)
+function parseSSEChunk(buffer, onEvent) {
+  const parts = buffer.split('\n\n')
+  const rest = parts.pop() || ''
 
-function selectTask(id) {
-  activeTaskId.value = id
-  selectedFile.value = null
-  panelOpen.value = false
+  for (const part of parts) {
+    const line = part.trim()
+    if (!line.startsWith('data: ')) continue
+    try {
+      onEvent(JSON.parse(line.slice(6)))
+    } catch (e) {
+      console.error('SSE parse error', e)
+    }
+  }
+
+  return rest
+}
+
+function updateAssistantTodos(assistantMsg, updater) {
+  assistantMsg.todos = assistantMsg.todos.map((todo) => {
+    const next = updater(todo)
+    return next || todo
+  })
+  messages.value = [...messages.value]
+}
+
+function openFile(file) {
+  selectedFile.value = file
+  panelOpen.value = true
 }
 
 async function sendMessage(text) {
@@ -74,9 +95,12 @@ async function sendMessage(text) {
   })
 
   isLoading.value = true
+  loadingPhase.value = 'planning'
+
+  let assistantMsg = null
 
   try {
-    const res = await fetch('/api/message', {
+    const res = await fetch('/api/message/stream', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content }),
@@ -87,29 +111,81 @@ async function sendMessage(text) {
       throw new Error(errBody.detail || `请求失败: ${res.status}`)
     }
 
-    const data = await res.json()
-    messages.value.push({
-      id: Date.now() + 1,
-      role: 'assistant',
-      content: data.content,
-      timestamp,
-    })
+    const reader = res.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      buffer += decoder.decode(value, { stream: true })
+      buffer = parseSSEChunk(buffer, (event) => {
+        if (event.type === 'planning') {
+          loadingPhase.value = 'planning'
+        }
+
+        if (event.type === 'todos') {
+          loadingPhase.value = 'executing'
+          assistantMsg = {
+            id: Date.now() + 1,
+            role: 'assistant',
+            content: '',
+            analysis: event.analysis || '',
+            todos: (event.todos || []).map((todo) => ({ ...todo })),
+            timestamp,
+          }
+          messages.value.push(assistantMsg)
+        }
+
+        if (event.type === 'todo_start' && assistantMsg) {
+          updateAssistantTodos(assistantMsg, (todo) =>
+            todo.id == event.id ? { ...todo, status: 'running' } : null
+          )
+        }
+
+        if (event.type === 'todo_done' && assistantMsg) {
+          updateAssistantTodos(assistantMsg, (todo) =>
+            todo.id == event.id ? { ...todo, status: 'done' } : null
+          )
+        }
+
+        if (event.type === 'complete' && assistantMsg) {
+          assistantMsg.content = event.content || ''
+          messages.value = [...messages.value]
+        }
+
+        if (event.type === 'error') {
+          throw new Error(event.message || '处理失败')
+        }
+      })
+    }
   } catch (err) {
-    messages.value.push({
-      id: Date.now() + 1,
-      role: 'assistant',
-      content: `消息发送失败：${err.message || '请确认后端已启动并已在 config.yaml 中配置 DeepSeek API Key。'}`,
-      timestamp,
-    })
+    if (assistantMsg) {
+      assistantMsg.content = `处理失败：${err.message || '请确认后端已启动并配置 API Key。'}`
+    } else {
+      messages.value.push({
+        id: Date.now() + 1,
+        role: 'assistant',
+        content: `消息发送失败：${err.message || '请确认后端已启动并配置 API Key。'}`,
+        timestamp,
+      })
+    }
     console.error(err)
   } finally {
     isLoading.value = false
+    loadingPhase.value = 'planning'
   }
 }
 
-function openFile(file) {
-  selectedFile.value = file
-  panelOpen.value = true
+const activeTask = computed(() =>
+  tasks.value.find((t) => t.id === activeTaskId.value)
+)
+
+function selectTask(id) {
+  activeTaskId.value = id
+  selectedFile.value = null
+  panelOpen.value = false
 }
 
 function closePanel() {
@@ -140,7 +216,7 @@ function closePanel() {
         </div>
       </header>
 
-      <ChatArea :messages="messages" :loading="isLoading" />
+      <ChatArea :messages="messages" :loading="isLoading" :loading-phase="loadingPhase" />
 
       <ChatInput :loading="isLoading" @send="sendMessage" />
     </main>
