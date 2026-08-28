@@ -15,8 +15,15 @@ class DeepSeekConfig(BaseModel):
     reasoning_effort: str = Field(default="high")
 
 
+class TavilyConfig(BaseModel):
+    api_key: str = Field(default="", description="Tavily API Key")
+    search_depth: str = Field(default="basic")
+    max_results: int = Field(default=5)
+
+
 class AppConfig(BaseModel):
     deepseek: DeepSeekConfig = Field(default_factory=DeepSeekConfig)
+    tavily: TavilyConfig = Field(default_factory=TavilyConfig)
 
 
 def load_config() -> AppConfig:
@@ -33,5 +40,9 @@ def load_config() -> AppConfig:
     env_api_key = os.getenv("DEEPSEEK_API_KEY", "").strip()
     if env_api_key:
         config.deepseek.api_key = env_api_key
+
+    env_tavily_key = os.getenv("TAVILY_API_KEY", "").strip()
+    if env_tavily_key:
+        config.tavily.api_key = env_tavily_key
 
     return config

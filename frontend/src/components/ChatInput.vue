@@ -1,12 +1,16 @@
 <script setup>
 import { ref } from 'vue'
 
+const props = defineProps({
+  loading: { type: Boolean, default: false },
+})
+
 const emit = defineEmits(['send'])
 
 const inputText = ref('')
 
 function handleSend() {
-  if (!inputText.value.trim()) return
+  if (!inputText.value.trim() || props.loading) return
   emit('send', inputText.value)
   inputText.value = ''
 }
@@ -27,12 +31,13 @@ function handleKeydown(e) {
         class="input-field"
         placeholder="输入消息，Enter 发送，Shift+Enter 换行..."
         rows="3"
+        :disabled="loading"
         @keydown="handleKeydown"
       />
       <div class="input-actions">
         <button
           class="send-btn"
-          :disabled="!inputText.trim()"
+          :disabled="!inputText.trim() || loading"
           @click="handleSend"
         >
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
@@ -85,6 +90,11 @@ function handleKeydown(e) {
 
 .input-field::placeholder {
   color: var(--text-muted);
+}
+
+.input-field:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .input-actions {
